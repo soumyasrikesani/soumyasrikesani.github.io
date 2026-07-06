@@ -1,0 +1,5 @@
+# macOS
+.DS_Store
+
+# Local preview tooling (not needed on GitHub Pages)
+.claude/
