@@ -23,7 +23,7 @@ const CONFIG = {
     email: "soumyakesani@gmail.com",
     github: "https://github.com/soumyasrikesani",
     linkedin: "https://linkedin.com/in/soumya-sri-kesani-6a7355350",
-    resumeUrl: "assets/resume.pdf",
+    resumeUrl: "assets/soumya_CV.pdf",
 
     bio:
       "I'm a Data Science & Analytics graduate student at the University of Oklahoma (GPA 3.90) " +
