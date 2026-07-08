@@ -1,13 +1,13 @@
 /* =============================================================================
-   app.js — fetches your public GitHub repos, sorts them into themed
-   categories, and renders the portfolio. You should not need to edit this;
-   change behavior in config.js instead.
+   app.js — renders profile, skills, projects (as slide-tab panels),
+   certifications, and the work-authorization note. Merges curated projects
+   from config.js with any new public GitHub repos. Edit content in config.js.
    ============================================================================= */
 
 (function () {
   "use strict";
 
-  const $ = (sel) => document.querySelector(sel);
+  const $ = (s) => document.querySelector(s);
   const el = (tag, cls, html) => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -18,27 +18,49 @@
     String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
     );
+  const catName = (id) => {
+    const c = CONFIG.categories.find((x) => x.id === id);
+    return c ? c.name : "Other Projects";
+  };
+  // Normalize repo names so "customer-churn-nlp" == "customer churn nlp".
+  const norm = (s) => String(s || "").toLowerCase().replace(/[-_\s.]+/g, "").trim();
 
-  /* ---------- Static content from config ---------- */
+  const SECTION_LABELS = [
+    ["intro", "Introduction"],
+    ["data", "Data & Tools"],
+    ["method", "Methodology"],
+    ["insights", "Insights"],
+  ];
+
+  /* ------------------------------------------------------------ static content */
   function renderProfile() {
     const p = CONFIG.profile;
-    $("#hero-eyebrow").textContent = p.title;
     $("#hero-name").textContent = p.name;
+    $("#hero-sub").textContent = p.subheading;
     $("#hero-tagline").textContent = p.tagline;
-    document.title = `${p.name} — ${p.title}`;
+    document.title = `${p.name} | Data Scientist`;
 
-    const meta = $("#hero-meta");
-    const bits = [];
-    if (p.location) bits.push(`<span>◍ ${esc(p.location)}</span>`);
-    if (p.email) bits.push(`<span>✉ ${esc(p.email)}</span>`);
-    if (p.github) bits.push(`<span>⌥ github.com/${esc(CONFIG.githubUsername)}</span>`);
-    meta.innerHTML = bits.join("");
+    const meta = [];
+    if (p.location) meta.push(`<span>◍ ${esc(p.location)}</span>`);
+    if (p.email) meta.push(`<span>✉ ${esc(p.email)}</span>`);
+    if (p.github) meta.push(`<span>⌥ github.com/${esc(CONFIG.githubUsername)}</span>`);
+    $("#hero-meta").innerHTML = meta.join("");
 
-    $("#about-text").textContent = p.about;
-    $("#skills").innerHTML = (CONFIG.skills || [])
-      .map((s) => `<span class="skill-chip">${esc(s)}</span>`)
+    const img = $("#avatar-img");
+    if (p.avatar) {
+      img.src = p.avatar;
+      img.alt = p.name;
+      img.onerror = () => { $(".hero-avatar").classList.add("hidden"); };
+    } else {
+      $(".hero-avatar").classList.add("hidden");
+    }
+
+    $("#about-text").textContent = p.bio;
+    $("#highlights").innerHTML = (p.highlights || [])
+      .map((h) => `<div class="highlight"><span class="hl-value">${esc(h.value)}</span><span class="hl-label">${esc(h.label)}</span></div>`)
       .join("");
 
+    // contact
     const links = [];
     if (p.email) links.push(`<a class="primary" href="mailto:${esc(p.email)}">Email me</a>`);
     if (p.linkedin) links.push(`<a href="${esc(p.linkedin)}" target="_blank" rel="noopener">LinkedIn</a>`);
@@ -46,131 +68,183 @@
     if (p.resumeUrl) links.push(`<a href="${esc(p.resumeUrl)}" target="_blank" rel="noopener">Résumé (PDF)</a>`);
     $("#contact-links").innerHTML = links.join("");
 
+    if (CONFIG.workAuthorization) {
+      $("#work-auth").innerHTML =
+        `<span class="wa-badge">Work Authorization</span><p>${esc(CONFIG.workAuthorization)}</p>`;
+    }
+
     $("#footer-text").innerHTML =
-      `© ${new Date().getFullYear()} ${esc(p.name)} · Built with a Claude-inspired theme · ` +
+      `© ${new Date().getFullYear()} ${esc(p.name)} · Claude-inspired theme · ` +
       `Projects sync live from <a href="${esc(p.github)}" target="_blank" rel="noopener" style="color:var(--accent)">GitHub</a>.`;
   }
 
-  /* ---------- Categorization ---------- */
-  function haystack(repo) {
-    return [repo.name, repo.description, (repo.topics || []).join(" ")]
-      .join(" ")
-      .toLowerCase();
+  function renderSkills() {
+    const root = $("#skill-groups");
+    root.innerHTML = "";
+    (CONFIG.skillGroups || []).forEach((g) => {
+      const block = el("div", "skill-group reveal");
+      block.appendChild(el("h3", "skill-group-name", esc(g.name)));
+      const row = el("div", "skill-row");
+      g.items.forEach((it) => {
+        const chip = el("div", "skill");
+        if (it.slug) {
+          const im = el("img", "skill-logo");
+          im.src = `https://cdn.simpleicons.org/${it.slug}`;
+          im.alt = "";
+          im.loading = "lazy";
+          im.onerror = () => im.remove();
+          chip.appendChild(im);
+        }
+        chip.appendChild(el("span", null, esc(it.label)));
+        row.appendChild(chip);
+      });
+      block.appendChild(row);
+      root.appendChild(block);
+    });
   }
 
-  function categorize(repo) {
-    const ov = CONFIG.overrides[repo.name];
-    if (ov && ov.category) return ov.category;
+  function renderCerts() {
+    const root = $("#certs-grid");
+    const certs = CONFIG.certifications || [];
+    if (!certs.length) { $("#certifications").classList.add("hidden"); return; }
+    root.innerHTML = "";
+    certs.forEach((c) => {
+      const card = el("div", "cert-card reveal");
+      const head = el("div", "cert-head");
+      head.appendChild(el("h3", "cert-title", esc(c.title)));
+      if (c.year) head.appendChild(el("span", "cert-year", esc(c.year)));
+      card.appendChild(head);
+      if (c.issuer) card.appendChild(el("p", "cert-issuer", esc(c.issuer)));
+      if (c.note) card.appendChild(el("p", "cert-note", esc(c.note)));
+      if (c.link) {
+        const a = el("a", "cert-link", "View credential ↗");
+        a.href = c.link; a.target = "_blank"; a.rel = "noopener";
+        card.appendChild(a);
+      }
+      root.appendChild(card);
+    });
+  }
 
-    const topics = (repo.topics || []).map((t) => t.toLowerCase());
-    // 1. topic match
-    for (const cat of CONFIG.categories) {
-      if ((cat.topics || []).some((t) => topics.includes(t.toLowerCase()))) return cat.id;
-    }
-    // 2. keyword match
-    const hay = haystack(repo);
-    for (const cat of CONFIG.categories) {
-      if ((cat.keywords || []).some((k) => hay.includes(k.toLowerCase()))) return cat.id;
-    }
+  /* ------------------------------------------------------------- project model */
+  // Curated project -> internal shape
+  function fromConfig(pr) {
+    const sections = SECTION_LABELS
+      .filter(([k]) => pr.sections && pr.sections[k])
+      .map(([k, label]) => ({ key: k, label, text: pr.sections[k] }));
+    return {
+      title: pr.title,
+      category: pr.category || "other",
+      tools: pr.tools || [],
+      tags: pr.tags || [],
+      demo: pr.demo || "",
+      code: "",           // resolved from GitHub if `repo` matches
+      repoKey: norm(pr.repo),
+      featured: !!pr.featured,
+      sections,
+      curated: true,
+    };
+  }
+
+  // GitHub repo -> internal shape (single Overview slide)
+  function fromRepo(r) {
+    return {
+      title: r.name.replace(/[-_]/g, " "),
+      category: keywordCategory(r),
+      tools: (r.language ? [r.language] : []).concat((r.topics || []).slice(0, 4)),
+      tags: [],
+      demo: r.homepage || "",
+      code: r.html_url,
+      repoKey: norm(r.name),
+      featured: false,
+      sections: [{ key: "intro", label: "Overview", text: r.description || "No description yet. See the repository for details." }],
+      curated: false,
+    };
+  }
+
+  function keywordCategory(r) {
+    const hay = [r.name, r.description, (r.topics || []).join(" ")].join(" ").toLowerCase();
+    const map = {
+      nlp: ["nlp", "text", "churn", "complaint", "tf-idf", "sentiment"],
+      forecasting: ["forecast", "time-series", "arima", "ets"],
+      geo: ["geo", "spatial", "viirs", "modis", "wildfire", "fire", "satellite", "earth-engine"],
+      viz: ["dashboard", "tableau", "power-bi", "visualization", "viz"],
+      dataeng: ["etl", "pipeline", "database", "sql", "warehouse"],
+      web: ["django", "flask", "web", "scraper", "app"],
+      ml: ["ml", "classifier", "prediction", "cluster", "regression", "shap"],
+    };
+    for (const id of Object.keys(map)) if (map[id].some((k) => hay.includes(k))) return id;
     return "other";
   }
 
-  function display(repo) {
-    const ov = CONFIG.overrides[repo.name] || {};
-    return {
-      name: repo.name,
-      title: ov.title || repo.name.replace(/[-_]/g, " "),
-      description: ov.description || repo.description || "No description yet.",
-      demo: ov.demo || repo.homepage || "",
-      url: repo.html_url,
-      language: repo.language,
-      stars: repo.stargazers_count,
-      topics: (repo.topics || []).slice(0, 5),
-      updated: repo.pushed_at,
-      catId: categorize(repo),
-    };
-  }
-
-  function displayManual(p) {
-    return {
-      name: p.title,
-      title: p.title,
-      description: p.description || "No description yet.",
-      demo: p.demo || "",
-      url: p.code || "",            // no repo → "Code" button is hidden
-      language: p.language || "",
-      stars: 0,
-      topics: (p.tech || []).slice(0, 5),
-      updated: p.updated || null,
-      catId: p.category && catById(p.category) ? p.category : "other",
-      manual: true,
-      featured: !!p.featured,
-    };
-  }
-
-  /* ---------- Card rendering ---------- */
-  function card(d, featured) {
-    const c = el("article", "card reveal" + (featured ? " featured" : ""));
-
-    const top = el("div", "card-top");
-    top.appendChild(el("h3", "card-title", esc(d.title)));
-    c.appendChild(top);
-
-    c.appendChild(el("p", "card-desc", esc(d.description)));
-
-    if (d.topics.length) {
-      const t = el("div", "card-topics");
-      d.topics.forEach((tp) => t.appendChild(el("span", "topic", esc(tp))));
-      c.appendChild(t);
-    }
-
-    const foot = el("div", "card-foot");
-    const stats = el("div", "card-stats");
-    if (d.language) stats.appendChild(el("span", null, `<span class="lang-dot"></span>${esc(d.language)}`));
-    if (d.stars > 0) stats.appendChild(el("span", null, `★ ${d.stars}`));
-    foot.appendChild(stats);
-
-    const links = el("div", "card-links");
-    if (d.demo) {
-      const a = el("a", null, "Live demo ↗");
-      a.href = d.demo; a.target = "_blank"; a.rel = "noopener";
-      links.appendChild(a);
-    }
-    if (d.url) {
-      const code = el("a", d.demo ? "muted" : null, "Code ↗");
-      code.href = d.url; code.target = "_blank"; code.rel = "noopener";
-      links.appendChild(code);
-    }
-    foot.appendChild(links);
-
-    c.appendChild(foot);
-    return c;
-  }
-
-  /* ---------- Main render ---------- */
+  /* --------------------------------------------------------------- rendering */
   let ALL = [];
   let activeFilter = "all";
 
-  function catById(id) {
-    return CONFIG.categories.find((c) => c.id === id);
-  }
+  function projectPanel(p, idx) {
+    const panel = el("article", "project reveal" + (p.featured ? " featured" : ""));
 
-  function renderFeatured() {
-    const names = CONFIG.featured || [];
-    if (!names.length) return;
-    const items = names
-      .map((n) => ALL.find((d) => d.name === n))
-      .filter(Boolean);
-    if (!items.length) return;
-    $("#featured").classList.remove("hidden");
-    const grid = $("#featured-grid");
-    grid.innerHTML = "";
-    items.forEach((d) => grid.appendChild(card(d, true)));
+    // left rail
+    const rail = el("div", "project-rail");
+    if (p.featured) rail.appendChild(el("span", "star-badge", "★ Featured"));
+    rail.appendChild(el("span", "project-cat", esc(catName(p.category))));
+    rail.appendChild(el("h3", "project-title", esc(p.title)));
+    if (p.tags && p.tags.length) {
+      const tw = el("div", "project-tags");
+      p.tags.forEach((t) => tw.appendChild(el("span", "ptag", esc(t))));
+      rail.appendChild(tw);
+    }
+    if (p.tools && p.tools.length) {
+      const tw = el("div", "project-tools");
+      p.tools.forEach((t) => tw.appendChild(el("span", "tool", esc(t))));
+      rail.appendChild(tw);
+    }
+    const links = el("div", "project-links");
+    if (p.demo) {
+      const a = el("a", "btn-sm primary", "Live demo ↗");
+      a.href = p.demo; a.target = "_blank"; a.rel = "noopener"; links.appendChild(a);
+    }
+    if (p.code) {
+      const a = el("a", "btn-sm", "View code ↗");
+      a.href = p.code; a.target = "_blank"; a.rel = "noopener"; links.appendChild(a);
+    }
+    if (links.children.length) rail.appendChild(links);
+    panel.appendChild(rail);
+
+    // right: slides
+    const body = el("div", "project-body");
+    const single = p.sections.length <= 1;
+    if (!single) {
+      const tabs = el("div", "slide-tabs");
+      p.sections.forEach((s, i) => {
+        const t = el("button", "slide-tab" + (i === 0 ? " active" : ""), esc(s.label));
+        t.dataset.target = `${idx}-${i}`;
+        t.onclick = () => {
+          tabs.querySelectorAll(".slide-tab").forEach((b) => b.classList.remove("active"));
+          t.classList.add("active");
+          body.querySelectorAll(".slide").forEach((sl) => sl.classList.remove("active"));
+          body.querySelector(`[data-slide="${idx}-${i}"]`).classList.add("active");
+        };
+        tabs.appendChild(t);
+      });
+      body.appendChild(tabs);
+    }
+    const slides = el("div", "slides");
+    p.sections.forEach((s, i) => {
+      const sl = el("div", "slide" + (i === 0 ? " active" : ""));
+      sl.dataset.slide = `${idx}-${i}`;
+      if (single) sl.appendChild(el("span", "slide-label", esc(s.label)));
+      sl.appendChild(el("p", "slide-text", esc(s.text)));
+      slides.appendChild(sl);
+    });
+    body.appendChild(slides);
+    panel.appendChild(body);
+
+    return panel;
   }
 
   function renderFilters() {
     const root = $("#filters");
-    const present = new Set(ALL.map((d) => d.catId));
+    const present = new Set(ALL.map((p) => p.category));
     const cats = [{ id: "all", name: "All" }]
       .concat(CONFIG.categories.filter((c) => present.has(c.id)))
       .concat(present.has("other") ? [{ id: "other", name: "Other" }] : []);
@@ -185,37 +259,42 @@
   function renderProjects() {
     const root = $("#projects-root");
     root.innerHTML = "";
+    let idx = 0;
 
-    const order = CONFIG.categories
-      .map((c) => c.id)
-      .concat("other");
+    // Featured first (only on "all")
+    if (activeFilter === "all") {
+      const feat = ALL.filter((p) => p.featured);
+      if (feat.length) {
+        const block = el("div", "category-block");
+        block.appendChild(el("h3", "category-name", "★ Featured"));
+        feat.forEach((p) => block.appendChild(projectPanel(p, idx++)));
+        root.appendChild(block);
+      }
+    }
 
+    const order = CONFIG.categories.map((c) => c.id).concat("other");
     let shown = 0;
     order.forEach((catId) => {
       if (activeFilter !== "all" && activeFilter !== catId) return;
-      const items = ALL.filter((d) => d.catId === catId);
+      let items = ALL.filter((p) => p.category === catId);
+      if (activeFilter === "all") items = items.filter((p) => !p.featured); // avoid dupes
       if (!items.length) return;
       shown += items.length;
 
-      const cat = catById(catId);
       const block = el("div", "category-block");
       const head = el("div", "category-head");
-      head.appendChild(el("h3", "category-name", esc(cat ? cat.name : "Other Projects")));
+      head.appendChild(el("h3", "category-name", esc(catName(catId))));
       head.appendChild(el("span", "category-count", items.length));
-      if (cat && cat.description) head.appendChild(el("p", "category-desc", esc(cat.description)));
       block.appendChild(head);
-
-      const grid = el("div", "grid");
-      items.forEach((d) => grid.appendChild(card(d, false)));
-      block.appendChild(grid);
+      items.forEach((p) => block.appendChild(projectPanel(p, idx++)));
       root.appendChild(block);
     });
 
-    if (!shown) root.appendChild(el("p", "loading", "No projects in this category yet."));
+    if (!shown && activeFilter !== "all") root.appendChild(el("p", "loading", "No projects in this category yet."));
     observeReveals();
   }
 
-  /* ---------- Reveal on scroll ---------- */
+  /* ------------------------------------------------------------ reveal + theme */
   let io;
   function observeReveals() {
     if (!("IntersectionObserver" in window)) {
@@ -224,56 +303,17 @@
     }
     if (!io) {
       io = new IntersectionObserver(
-        (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }),
-        { threshold: 0.08 }
+        (es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }),
+        { threshold: 0.06 }
       );
     }
     document.querySelectorAll(".reveal:not(.in)").forEach((n) => io.observe(n));
   }
 
-  /* ---------- Fetch ---------- */
-  async function fetchRepos() {
-    const user = CONFIG.githubUsername;
-    const url = `https://api.github.com/users/${encodeURIComponent(user)}/repos?per_page=100&sort=updated`;
-    const res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
-    if (!res.ok) {
-      if (res.status === 403) throw new Error("RATE_LIMIT");
-      if (res.status === 404) throw new Error("NOT_FOUND");
-      throw new Error("HTTP " + res.status);
-    }
-    return res.json();
-  }
-
-  function filterRepos(repos) {
-    const excl = new Set(CONFIG.excludeRepos || []);
-    return repos.filter((r) => {
-      if (excl.has(r.name)) return false;
-      if ((CONFIG.overrides[r.name] || {}).hidden) return false;
-      if (CONFIG.excludeForks && r.fork) return false;
-      if (CONFIG.excludeArchived && r.archived) return false;
-      return true;
-    });
-  }
-
-  function showError(kind) {
-    const map = {
-      RATE_LIMIT:
-        "GitHub's public API rate limit was hit (60 requests/hour per network). " +
-        "This resets within the hour — refresh then. Your live site rarely hits this.",
-      NOT_FOUND: `No GitHub user found for “${esc(CONFIG.githubUsername)}”. Check <code>githubUsername</code> in config.js.`,
-      DEFAULT: "Couldn't reach GitHub right now. Please refresh in a moment.",
-    };
-    $("#projects-root").innerHTML =
-      `<div class="error-box">${map[kind] || map.DEFAULT}<br><br>` +
-      `Meanwhile, browse everything on <a href="${esc(CONFIG.profile.github)}" target="_blank" rel="noopener">GitHub ↗</a>.</div>`;
-  }
-
-  /* ---------- Theme toggle ---------- */
   function initTheme() {
     const saved = localStorage.getItem("theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const theme = saved || (prefersDark ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-theme", saved || (prefersDark ? "dark" : "light"));
     $("#theme-toggle").onclick = () => {
       const cur = document.documentElement.getAttribute("data-theme");
       const next = cur === "dark" ? "light" : "dark";
@@ -282,46 +322,56 @@
     };
   }
 
-  /* ---------- Boot ---------- */
-  function paint() {
-    // manual projects first (curated), then GitHub repos by stars/recency
-    ALL.sort((a, b) => {
-      if (!!b.manual !== !!a.manual) return a.manual ? -1 : 1;
-      return (b.stars - a.stars) || (new Date(b.updated || 0) - new Date(a.updated || 0));
+  /* ------------------------------------------------------------------- fetch */
+  async function fetchRepos() {
+    const user = CONFIG.githubUsername;
+    const res = await fetch(
+      `https://api.github.com/users/${encodeURIComponent(user)}/repos?per_page=100&sort=updated`,
+      { headers: { Accept: "application/vnd.github+json" } }
+    );
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  function mergeRepos(repos) {
+    const excl = new Set((CONFIG.excludeRepos || []).map(norm));
+    const curatedRepoKeys = new Set(ALL.filter((p) => p.repoKey).map((p) => p.repoKey));
+
+    repos.forEach((r) => {
+      const key = norm(r.name);
+      // attach code link to a curated project that references this repo
+      const match = ALL.find((p) => p.repoKey === key);
+      if (match) { if (!match.code) match.code = r.html_url; return; }
+      if (excl.has(key)) return;
+      if (CONFIG.excludeForks && r.fork) return;
+      if (CONFIG.excludeArchived && r.archived) return;
+      if (curatedRepoKeys.has(key)) return;
+      ALL.push(fromRepo(r));
     });
-    renderFeatured();
+  }
+
+  function paint() {
     renderFilters();
     renderProjects();
   }
 
+  /* -------------------------------------------------------------------- boot */
   async function init() {
     initTheme();
     renderProfile();
+    renderSkills();
+    renderCerts();
 
-    // 1. Manual projects render immediately (no network needed).
-    const manual = (CONFIG.manualProjects || []).map(displayManual);
-    ALL = manual.slice();
-    if (manual.length) paint();
+    ALL = (CONFIG.projects || []).map(fromConfig);
+    paint(); // curated projects render immediately
 
-    // 2. Merge in live GitHub repos when they arrive.
     try {
-      const raw = await fetchRepos();
-      const repos = filterRepos(raw).map(display);
-      ALL = manual.concat(repos);
-      paint();
+      const repos = await fetchRepos();
+      mergeRepos(repos);
+      paint(); // add code links + any new repos
     } catch (e) {
-      if (manual.length) {
-        // Keep manual projects visible; note GitHub is temporarily unavailable.
-        const note = el("div", "error-box");
-        note.style.marginTop = "24px";
-        note.innerHTML =
-          "Live GitHub projects are temporarily unavailable (API limit or network). " +
-          `The projects above are always shown. See more on ` +
-          `<a href="${esc(CONFIG.profile.github)}" target="_blank" rel="noopener">GitHub ↗</a>.`;
-        $("#projects-root").appendChild(note);
-      } else {
-        showError(e.message);
-      }
+      // Curated projects already shown; GitHub is optional enrichment.
+      observeReveals();
     }
   }
 

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Soumya Sri Kesani — Data Scientist</title>
-  <meta name="description" content="Portfolio of Soumya Sri Kesani — Data Science & Analytics projects across NLP, forecasting, machine learning, visualization, and geospatial." />
+  <title>Soumya Sri Kesani | Data Scientist</title>
+  <meta name="description" content="Portfolio of Soumya Sri Kesani, Data Science & Analytics projects across NLP, forecasting, machine learning, visualization, geospatial, and data engineering." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +16,8 @@
     <a href="#top" class="brand">SK</a>
     <nav class="nav">
       <a href="#projects">Projects</a>
-      <a href="#about">About</a>
+      <a href="#skills">Skills</a>
+      <a href="#certifications">Certifications</a>
       <a href="#contact">Contact</a>
       <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme">
         <span class="theme-icon">◐</span>
@@ -25,53 +26,64 @@
   </header>
 
   <main id="top">
-    <!-- HERO -->
+    <!-- HERO / INTRO -->
     <section class="hero">
-      <p class="hero-eyebrow" id="hero-eyebrow"></p>
-      <h1 class="hero-name" id="hero-name"></h1>
-      <p class="hero-tagline" id="hero-tagline"></p>
-      <div class="hero-actions">
-        <a href="#projects" class="btn btn-primary">View projects</a>
-        <a href="#contact" class="btn btn-ghost">Get in touch</a>
+      <div class="hero-text">
+        <h1 class="hero-name" id="hero-name"></h1>
+        <p class="hero-sub" id="hero-sub"></p>
+        <p class="hero-tagline" id="hero-tagline"></p>
+        <div class="hero-actions">
+          <a href="#projects" class="btn btn-primary">Click me to explore my projects →</a>
+          <a href="#contact" class="btn btn-ghost">Get in touch</a>
+        </div>
+        <div class="hero-meta" id="hero-meta"></div>
       </div>
-      <div class="hero-meta" id="hero-meta"></div>
+      <div class="hero-avatar">
+        <img id="avatar-img" alt="" />
+      </div>
     </section>
 
-    <!-- FEATURED -->
-    <section id="featured" class="section featured-section hidden">
-      <h2 class="section-title">Featured</h2>
-      <div class="featured-grid" id="featured-grid"></div>
+    <!-- ABOUT (directly after intro) -->
+    <section id="about" class="section about-section">
+      <h2 class="section-title">About</h2>
+      <p class="about-text" id="about-text"></p>
+      <div class="highlights" id="highlights"></div>
+    </section>
+
+    <!-- SKILLS -->
+    <section id="skills" class="section skills-section">
+      <h2 class="section-title">Skills &amp; Tools</h2>
+      <div class="skill-groups" id="skill-groups"></div>
     </section>
 
     <!-- PROJECTS -->
     <section id="projects" class="section">
       <div class="section-head">
         <h2 class="section-title">Projects</h2>
-        <p class="section-sub">Live from GitHub plus selected work, grouped by theme.</p>
+        <p class="section-sub">Curated work plus anything new from GitHub, grouped by theme. Use the tabs on each project to move through Introduction, Data &amp; Tools, Methodology, and Insights.</p>
       </div>
 
       <div class="filters" id="filters"></div>
-
       <div id="projects-root">
         <div class="loading" id="loading">
           <div class="spinner"></div>
-          <p>Loading projects from GitHub…</p>
+          <p>Loading projects…</p>
         </div>
       </div>
     </section>
 
-    <!-- ABOUT -->
-    <section id="about" class="section about-section">
-      <h2 class="section-title">About</h2>
-      <p class="about-text" id="about-text"></p>
-      <div class="skills" id="skills"></div>
+    <!-- CERTIFICATIONS -->
+    <section id="certifications" class="section certs-section">
+      <h2 class="section-title">Certifications &amp; Credentials</h2>
+      <div class="certs-grid" id="certs-grid"></div>
     </section>
 
     <!-- CONTACT -->
     <section id="contact" class="section contact-section">
       <h2 class="section-title">Let's talk</h2>
-      <p class="contact-sub">Open to data science, analytics, and ML roles.</p>
+      <p class="contact-sub">Open to data science, analytics, ML, and data engineering roles.</p>
       <div class="contact-links" id="contact-links"></div>
+      <div class="work-auth" id="work-auth"></div>
     </section>
   </main>
 
